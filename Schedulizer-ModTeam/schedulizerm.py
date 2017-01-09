@@ -10,14 +10,14 @@ import re
 
 """ USER CONFIG """
 
-USERAGENT = ""
+USERAGENT = "Schedules posts from a central subreddit to other subreddit. ~asianmovement"
 #Describe the bot and what it does. Include your username
-APP_ID = ""
-APP_SECRET = ""
-APP_URI = ""
+APP_ID = "nexusscheduler"
+APP_SECRET = "k2ywQgk6PV6YOOacVPW0PMtsYvc"
+APP_URI = "https://127.0.0.1:65010/authorize_callback"
 APP_REFRESH = ""
 # https://www.reddit.com/comments/3cm1p8/how_to_make_your_bot_use_oauth2/
-SUBREDDIT = "Goldtesting"
+SUBREDDIT = "Asianlife"
 #This is the subreddit where the bot finds the schedules
 #It should be private with only the team of moderators
 TITLESEPARATOR = "||"
@@ -42,7 +42,7 @@ ALLOWOTHEREDITS = False
 WAIT = 30
 #How many seconds in between loop cycles. Completely inactive during this time.
 
-ADMINS = ["ApexRedditr", "GoldenSights"]
+ADMINS = ["asianmovement", "shadowsweep"]
 #These are the people who will get tracebacks when the bot has problems.
 TRACEBACK_SUBJECT = "SchedulizerM Error traceback"
 
@@ -114,6 +114,8 @@ sql = sqlite3.connect('sql.db')
 cur = sql.cursor()
 cur.execute('CREATE TABLE IF NOT EXISTS schedules(ID TEXT, TIME INT, REDDIT TEXT, TITLE TEXT, DIST INT, STICKY INT, FLAIR TEXT, FLCSS TEXT, POST TEXT)')
 #                                                   0         1          2            3          4         5           6           7           *
+cur.execute('CREATE INDEX IF NOT EXISTS schedule_idindex ON schedules(id)')
+cur.execute('CREATE INDEX IF NOT EXISTS schedule_postindex ON schedules(post)')
 sql.commit()
 
 print('Logging in')

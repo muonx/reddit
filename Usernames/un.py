@@ -10,7 +10,7 @@ import time
 import traceback
 
 
-sql = sqlite3.connect('C:/git/reddit/usernames/un.db')
+sql = sqlite3.connect('C:\\git\\reddit\\usernames\\un.db')
 cur = sql.cursor()
 cur.execute('''
     CREATE TABLE IF NOT EXISTS users(
@@ -28,34 +28,30 @@ cur.execute('''
 cur.execute('CREATE INDEX IF NOT EXISTS userindex ON users(idint)')
 cur.execute('CREATE INDEX IF NOT EXISTS nameindex ON users(lowername)')
 sql.commit()
-#  0 - idint
-#  1 - idstr
-#  2 - created
-#  3 - human
-#  4 - name
-#  5 - link karma
-#  6 - comment karma
-#  7 - total karma
-#  8 - available
-#  9 - lastscan
-SQL_COLUMNCOUNT = 11
-SQL_IDINT = 0
-SQL_IDSTR = 1
-SQL_CREATED = 2
-SQL_HUMAN = 3
-SQL_NAME = 4
-SQL_LINK_KARMA = 5
-SQL_COMMENT_KARMA = 6
-SQL_TOTAL_KARMA = 7
-SQL_AVAILABLE = 8
-SQL_LASTSCAN = 9
-SQL_LOWERNAME = 10
+
+# These numbers are used for interpreting the tuples that come from SELECT
+SQL_USER_COLUMNS = [
+    'idint',
+    'idstr',
+    'created',
+    'human',
+    'name',
+    'link_karma',
+    'comment_karma',
+    'total_karma',
+    'available',
+    'lastscan',
+    'lowername',
+]
+
+SQL_USER = {key:index for (index, key) in enumerate(SQL_USER_COLUMNS)}
+
 
 USERAGENT = '''
 /u/GoldenSights Usernames data collection:
 Gathering the creation dates of user accounts for visualization.
 More at https://github.com/voussoir/reddit/tree/master/Usernames
-'''.replace('\n', ' ')
+'''.replace('\n', ' ').strip()
 APP_ID = ""
 APP_SECRET = ""
 APP_URI = ""
@@ -82,10 +78,10 @@ AVAILABILITY = {True:'available', False:'unavailable', 'available':1, 'unavailab
 HEADER_FULL = '  ID            CREATED                  NAME             LINK     COMMENT      TOTAL            LAST SCANNED'
 HEADER_BRIEF = '      LAST SCANNED       |   NAME'
 
-MEMBERFORMAT_FULL = '%s  %s  %s  %s  %s (%s) | %s'
-MEMBERFORMAT_BRIEF = '%s | %s'
+MEMBERFORMAT_FULL = '{id:>6} {created} {username:<20} {link_karma:>9} {comment_karma:>9} ({total_karma:>10}) | {lastscan}'
+MEMBERFORMAT_BRIEF = '{lastscan} | {username}'
 
-MIN_LASTSCAN_DIFF = 86400 * 365
+MIN_LASTSCAN_DIFF = 86400 * 2000
 # Don't rescan a name if we scanned it this many days ago
 
 VALID_CHARS = string.ascii_letters + string.digits + '_-'
@@ -169,75 +165,12 @@ def check_old(available=None, threshold=86400):
     for item in availables:
         process(item, quiet=True, noskip=True)
 
-def commapadding(s, spacer, spaced, left=True, forcestring=False):
-    '''
-    Given a number 's', make it comma-delimted and then
-    pad it on the left or right using character 'spacer'
-    so the whole string is of length 'spaced'
-
-    Providing a non-numerical string will skip straight
-    to padding
-    '''
-    if not forcestring:
-        try:
-            s = int(s)
-            s = '{0:,}'.format(s)
-        except:
-            pass
-
-    spacer = spacer * (spaced - len(s))
-    if left:
-        return spacer + s
-    return s + spacer
-
 def count(validonly=False):
     if validonly:
         cur.execute('SELECT COUNT(*) FROM users WHERE idint IS NOT NULL AND available == 0')
     else:
         cur.execute('SELECT COUNT(*) FROM users')
     return cur.fetchone()[0]
-
-def everyoneyouveeverinteractedwith(username):
-    '''
-    Not because I should have, but because I was able to.
-    '''
-    max_todo_length = 2 ** 10
-    max_done_length = 2 ** 13
-    def find_interactions(username2):
-        if username2 in done:
-            return
-        process(username2, quiet=True)
-        done.add(username2)
-        while len(done) >= max_done_length:
-            done.pop()
-        if len(todo) >= max_todo_length-100:
-            return
-        try:
-            user = r.get_redditor(username2, fetch=True)
-        except:
-            return
-        comments = user.get_comments(limit=max_todo_length)
-        for comment in comments:
-            author = comment.link_author.lower()
-            if len(todo) > max_todo_length:
-                break
-            if author == '[deleted]':
-                continue
-            if author in done:
-                continue
-            if author in todo:
-                continue
-            print('%s interacted with %s' % (username2, author))
-            todo.add(author)
-    todo = set()
-    done = set()
-    todo.add(username)
-    l = 1
-    while l > 0:
-        find_interactions(todo.pop())
-        l = len(todo)
-        print('Have %d names\r' % l, end='')
-        sys.stdout.flush()
 
 def execit(*args, **kwargs):
     '''
@@ -363,14 +296,14 @@ def human(timestamp):
     human = datetime.datetime.strftime(day, "%b %d %Y %H:%M:%S UTC")
     return human
 
-def idlenew(subreddit='all', sleepy=15):
+def idlenew(subreddit='all', limit=100, sleepy=15):
     '''
     Infinitely grab the /new queue and process names, ignoring any
     exceptions. Great for processing while AFK.
     '''
     while True:
         try:
-            get_from_new(subreddit, 100)
+            get_from_new(subreddit, limit)
         except KeyboardInterrupt:
             raise
         except:
@@ -388,54 +321,52 @@ def load_textfile(filename):
     f.close()
     return lines
 
-def memberformat_brief(data, spacer='.'):
+def memberformat_brief(data):
     '''
     Shorter version of memberformat which I'm using for the "available" list.
     '''
-    name = data[SQL_NAME]
-    lastscan = data[SQL_LASTSCAN]
+    name = data[SQL_USER['name']]
+    lastscan = data[SQL_USER['lastscan']]
     lastscan = human(lastscan)
 
-    out = MEMBERFORMAT_BRIEF % (lastscan, name)
+    out = MEMBERFORMAT_BRIEF.format(lastscan=lastscan, username=name)
     return out
 
-def memberformat_full(data, spacer='.'):
+def memberformat_full(data):
     '''
     Given a data list, create a string that will
     become a single row in one of the show files.
     '''
-    idstr = data[SQL_IDSTR]
-    idstr = commapadding(idstr, spacer, 5, forcestring=True)
+    idstr = data[SQL_USER['idstr']]
 
     # Usernames are maximum of 20 chars
-    name = data[SQL_NAME]
-    name += spacer*(20 - len(name))
+    name = data[SQL_USER['name']]
 
-    thuman = data[SQL_HUMAN]
-    if thuman is None:
-        thuman = ' '*24
-    link_karma = data[SQL_LINK_KARMA]
-    comment_karma = data[SQL_COMMENT_KARMA]
-    total_karma = data[SQL_TOTAL_KARMA]
+    created = data[SQL_USER['human']]
+    created = created or ''
+    link_karma = data[SQL_USER['link_karma']]
+    comment_karma = data[SQL_USER['comment_karma']]
+    total_karma = data[SQL_USER['total_karma']]
     if link_karma is None:
-        link_karma = commapadding('None', spacer, 9)
-        comment_karma = commapadding('None', spacer, 9)
-        total_karma = commapadding('None', spacer, 10)
+        link_karma = 'None'
+        comment_karma = 'None'
+        total_karma = 'None'
     else:
-        link_karma = commapadding(link_karma, spacer, 9)
-        comment_karma = commapadding(comment_karma, spacer, 9)
-        total_karma = commapadding(total_karma, spacer, 10)
+        link_karma = '{:,}'.format(link_karma)
+        comment_karma = '{:,}'.format(comment_karma)
+        total_karma = '{:,}'.format(total_karma)
 
-    lastscan = data[SQL_LASTSCAN]
+    lastscan = data[SQL_USER['lastscan']]
     lastscan = human(lastscan)
-    out = MEMBERFORMAT_FULL % (
-        idstr,
-        thuman,
-        name,
-        link_karma,
-        comment_karma,
-        total_karma,
-        lastscan)
+    out = MEMBERFORMAT_FULL.format(
+        id=idstr,
+        created=created,
+        username=name,
+        link_karma=link_karma,
+        comment_karma=comment_karma,
+        total_karma=total_karma,
+        lastscan=lastscan,
+    )
     return out
 
 def popgenerator(x):
@@ -473,28 +404,28 @@ def process(users, quiet=False, knownid='', noskip=False):
     current = 0
     for user in users:
         current += 1
-        data = [None] * SQL_COLUMNCOUNT
-        data[SQL_LASTSCAN] = int(getnow())
+        data = [None] * len(SQL_USER)
+        data[SQL_USER['lastscan']] = int(getnow())
         if isinstance(user, list):
             # This happens when we receive NotFound. [name, availability]
             if knownid != '':
-                data[SQL_IDINT] = b36(knownid)
-                data[SQL_IDSTR] = knownid
-            data[SQL_NAME] = user[0]
-            data[SQL_AVAILABLE] = AVAILABILITY[user[1]]
+                data[SQL_USER['idint']] = b36(knownid)
+                data[SQL_USER['idstr']] = knownid
+            data[SQL_USER['name']] = user[0]
+            data[SQL_USER['available']] = AVAILABILITY[user[1]]
         else:
             # We have a Redditor object.
             h = human(user.created_utc)
-            data[SQL_IDINT] = b36(user.id)
-            data[SQL_IDSTR] = user.id
-            data[SQL_CREATED] = user.created_utc
-            data[SQL_HUMAN] = h
-            data[SQL_NAME] = user.name
-            data[SQL_LINK_KARMA] = user.link_karma
-            data[SQL_COMMENT_KARMA] = user.comment_karma
-            data[SQL_TOTAL_KARMA] = user.comment_karma + user.link_karma
-            data[SQL_AVAILABLE] = 0
-        data[SQL_LOWERNAME] = data[SQL_NAME].lower()
+            data[SQL_USER['idint']] = b36(user.id)
+            data[SQL_USER['idstr']] = user.id
+            data[SQL_USER['created']] = user.created_utc
+            data[SQL_USER['human']] = h
+            data[SQL_USER['name']] = user.name
+            data[SQL_USER['link_karma']] = user.link_karma
+            data[SQL_USER['comment_karma']] = user.comment_karma
+            data[SQL_USER['total_karma']] = user.comment_karma + user.link_karma
+            data[SQL_USER['available']] = 0
+        data[SQL_USER['lowername']] = data[SQL_USER['name']].lower()
 
         printprefix = '%04d' % current
         x = smartinsert(data, printprefix)
@@ -516,12 +447,11 @@ def processid(idnum, ranger=1):
         idnum = x + base
         exists = getentry(idint=idnum)
         if exists is not None:
-            print('Skipping %s : %s' % (b36(idnum), exists[SQL_NAME]))
+            print('Skipping %s : %s' % (b36(idnum), exists[SQL_USER['name']]))
             continue
         idnum = 't2_' + b36(idnum)
         idnum = idnum.lower()
-        print('%s - ' % idnum, end='')
-        sys.stdout.flush()
+        print('%s - ' % idnum, end='', flush=True)
         search = list(r.search('author_fullname:%s' % idnum))
         if len(search) > 0:
             item = search[0].author.name
@@ -529,6 +459,20 @@ def processid(idnum, ranger=1):
         else:
             print('No idea.')
 pid = processid
+
+def process_input():
+    while True:
+        try:
+            x = input('p> ')
+        except KeyboardInterrupt:
+            print()
+            break
+        if not x:
+            continue
+        try:
+            process(x, quiet=True, noskip=True)
+        except:
+            traceback.print_exc()
 
 def process_from_database(filename, table, column, delete_original=False):
     '''
@@ -538,9 +482,14 @@ def process_from_database(filename, table, column, delete_original=False):
     s = sqlite3.connect(filename)
     c = s.cursor()
     c2 = s.cursor()
-    c.execute('SELECT DISTINCT %s FROM %s' % (column, table))
+    query = 'SELECT DISTINCT %s FROM %s' % (column, table)
+    c.execute(query)
+    i = 0
     try:
         for item in fetchgenerator(c):
+            i = (i + 1) % 100
+            if i == 0:
+                s.commit()
             username = item[0]
             if username is not None:
                 p(username, quiet=True)
@@ -548,25 +497,31 @@ def process_from_database(filename, table, column, delete_original=False):
                 c2.execute('DELETE FROM %s WHERE %s == ?' % (table, column), [username])
     except (Exception, KeyboardInterrupt) as e:
         if delete_original:
-            print('Commiting changes...')
+            print('Committing changes...')
             s.commit()
         e.sql = s
         raise e
     return s
 
 def print_message(data, printprefix=''):
-    if data[SQL_HUMAN] is not None:
-        print('%s %s : %s : %s : %d : %d' % (
-                printprefix,
-                data[SQL_IDSTR].rjust(5, ' '),
-                data[SQL_HUMAN],
-                data[SQL_NAME],
-                data[SQL_LINK_KARMA],
-                data[SQL_COMMENT_KARMA]))
+    if data[SQL_USER['human']] is not None:
+        print('{prefix:>5} {idstr:>6} : {human} : {name} : {link_karma} : {comment_karma}'.format(
+            prefix=printprefix,
+            idstr=data[SQL_USER['idstr']],
+            human=data[SQL_USER['human']],
+            name=data[SQL_USER['name']],
+            link_karma=data[SQL_USER['link_karma']],
+            comment_karma=data[SQL_USER['comment_karma']],
+            )
+        )
     else:
-        statement = 'available' if data[SQL_AVAILABLE] is 1 else 'unavailable'
-        statement = statement.rjust(32, ' ')
-        print('%s %s : %s' % (printprefix, statement, data[SQL_NAME]))
+        availability = 'available' if data[SQL_USER['available']] is 1 else 'unavailable'
+        print('{prefix:>5} {availability:>33} : {name}'.format(
+            prefix=printprefix,
+            availability=availability,
+            name=data[SQL_USER['name']],
+            )
+        )
 
 def save_textfile(filename, lines):
     '''
@@ -652,21 +607,21 @@ def smartinsert(data, printprefix=''):
     '''
     print_message(data, printprefix)
 
-    exists_in_db = (getentry(name=data[SQL_NAME].lower()) is not None)
+    exists_in_db = (getentry(name=data[SQL_USER['name']].lower()) is not None)
     if exists_in_db:
         isnew = False
         data = [
-            data[SQL_IDINT],
-            data[SQL_IDSTR],
-            data[SQL_CREATED],
-            data[SQL_HUMAN],
-            data[SQL_LINK_KARMA],
-            data[SQL_COMMENT_KARMA],
-            data[SQL_TOTAL_KARMA],
-            data[SQL_AVAILABLE],
-            data[SQL_LASTSCAN],
-            data[SQL_NAME],
-            data[SQL_NAME].lower()]
+            data[SQL_USER['idint']],
+            data[SQL_USER['idstr']],
+            data[SQL_USER['created']],
+            data[SQL_USER['human']],
+            data[SQL_USER['link_karma']],
+            data[SQL_USER['comment_karma']],
+            data[SQL_USER['total_karma']],
+            data[SQL_USER['available']],
+            data[SQL_USER['lastscan']],
+            data[SQL_USER['name']],
+            data[SQL_USER['name']].lower()]
         # coalesce allows us to fallback on the existing values
         # if the given values are null, to avoid erasing data about users
         # whose accounts are now deleted.
@@ -704,8 +659,7 @@ def userify_list(users, noskip=False, quiet=False):
                 continue
             if not all(c in VALID_CHARS for c in username):
                 print('%s : Contains invalid characters' % username)
-                #continue
-                pass
+                continue
         elif isinstance(username, praw.objects.Redditor):
             username = username.name.lower()
         else:
@@ -713,11 +667,11 @@ def userify_list(users, noskip=False, quiet=False):
 
         existing_entry = getentry(name=username)
         if existing_entry is not None:
-            lastscan = existing_entry[SQL_LASTSCAN]
+            lastscan = existing_entry[SQL_USER['lastscan']]
             should_rescan = (getnow() - lastscan) > MIN_LASTSCAN_DIFF
             if should_rescan is False and noskip is False:
-                prefix = ' ' * 29
-                appendix = '(available)' if existing_entry[SQL_AVAILABLE] else ''
+                prefix = ' ' * 31
+                appendix = '(available)' if existing_entry[SQL_USER['available']] else ''
                 print('%sskipping : %s %s' % (prefix, username, appendix))
                 continue
 

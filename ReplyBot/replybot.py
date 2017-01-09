@@ -48,6 +48,7 @@ print('Opening SQL Database')
 sql = sqlite3.connect('sql.db')
 cur = sql.cursor()
 cur.execute('CREATE TABLE IF NOT EXISTS oldposts(id TEXT)')
+cur.execute('CREATE INDEX IF NOT EXISTS oldpost_index ON oldposts(id)')
 
 print('Logging in...')
 r = praw.Reddit(USERAGENT)
@@ -62,7 +63,7 @@ def replybot():
         posts += list(subreddit.get_new(limit=MAXPOSTS))
     if DO_COMMENTS:
         posts += list(subreddit.get_comments(limit=MAXPOSTS))
-    posts.reverse()
+    posts.sort(key=lambda x: x.created_utc)
 
     for post in posts:
         # Anything that needs to happen every loop goes here.
@@ -79,7 +80,7 @@ def replybot():
             print('Will not reply to myself.')
             continue
 
-        if KEYAUTHORS != [] and all(auth.lower() != pauthor for auth in KEYAUTHORS):
+        if KEYAUTHORS != [] and not any(auth.lower() == pauthor.lower() for auth in KEYAUTHORS):
             # This post was not made by a keyauthor
             continue
 
@@ -102,7 +103,10 @@ def replybot():
         sql.commit()
         print('Replying to %s by %s' % (pid, pauthor))
         try:
-            post.reply(REPLYSTRING)
+            if hasattr(post, "reply"):
+                post.reply(REPLYSTRING)
+            else:
+                post.add_comment(REPLYSTRING)
         except praw.errors.Forbidden:
             print('403 FORBIDDEN - is the bot banned from %s?' % post.subreddit.display_name)
 

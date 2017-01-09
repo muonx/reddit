@@ -1,49 +1,47 @@
 timesearch.py
 =============
 
-    19 august 2015
-    - fixed bug in which updatescores stopped iterating early
-      if you had more than 100 comments in a row in the db.
-    - commentaugment has been completely merged into the
-      timesearch.py file. You can use commentaugment_prompt()
-      to input the parameters, or use the commentaugment()
-      function directly.
-    07 september 2015
-    - fixed bug which allowed `livestream` to crash because
-      `bot.refresh()` was outside of the trycatch.
-    11 november 2015
-    - created `offline_reading.py` which converts a timesearch database
-      into a comment tree that can be rendered into HTML
+- 2016 08 10
+    - Started merging redmash and wrote its argparser
+
+- 2016 07 03
+    - Improved docstring clarity.
+
+- 2016 07 02
+    - Added `livestream` argparse
+
+- 2016 06 07
+    - Offline_reading has been merged with the main timesearch file
+    - `get_all_posts` renamed to `timesearch`
+    - Timesearch parameter `usermode` renamed to `username`; `maxupper` renamed to `upper`.
+    - Everything now accessible via commandline arguments. Read the docstring at the top of the file.
+
+- 2016 06 05
+    - NEW DATABASE SCHEME. Submissions and comments now live in different tables like they should have all along. Submission table has two new columns for a little bit of commentaugment metadata. This allows commentaugment to only scan threads that are new.
+    - You can use the `migrate_20160605.py` script to convert old databases into new ones.
+
+- 2015 11 11
+    - created `offline_reading.py` which converts a timesearch database into a comment tree that can be rendered into HTML
+
+- 2015 09 07
+    - fixed bug which allowed `livestream` to crash because `bot.refresh()` was outside of the try-catch.
+
+- 2015 08 19
+    - fixed bug in which updatescores stopped iterating early if you had more than 100 comments in a row in the db
+    - commentaugment has been completely merged into the timesearch.py file. you can use commentaugment_prompt() to input the parameters, or use the commentaugment() function directly.
+
+&nbsp;
 
 It's all fresh all smooth
 
 This creates an sqlite database file containing the submissions on a subreddit within the requested time span. Best when used in conjunction with an SQL viewer or a tool like Redmash to create text files.
 
-If you leave the subreddit blank, it will ask you to enter a username instead. This feature is not 100% perfect yet.
+If you leave the subreddit blank, it will ask you to enter a username instead. This feature is not as perfect as subreddit scanning due to API limitations.
 
 Don't forget to change the Useragent before starting.
 
 ============
 
-commentaugment.py
-==============
-
-The commentaugment script will take the submissions in one of your timesearch databases, and get their comments. These comments will be packed back into the same database, so be mindful of the item's fullname when you are later doing analysis (t1=comment, t3=submission)
-
-Commentaugment can be very slow, so you may wish to have verbosity=1 to see what's happening.
-
-===============
-
-offline_reading.py
-==================
-
-    For the whole db:
-    > offline_reading.py databases\ack.db    
-
-    For a single submission:
-    > offline_reading.py databases\ack.db t3_20ib8z
- 
-===============
 
 I want to live in a future where everyone uses UTC and agrees on daylight savings.
 

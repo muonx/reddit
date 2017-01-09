@@ -1,12 +1,20 @@
-<<<<<<< HEAD
 #################
 ## Eclipse
 #################
 
 *.db-journal
-SubredditBirthdays/sql.db
+SubredditBirthdays/sb.db
+SubredditBirthdays/sb.zip
+SubredditBirthdays/spooky/*
+SubredditBirthdays/spooky.zip
+SubredditBirthdays/show/all-*
+SubredditBirthdays/show/dirty-*
+SubredditBirthdays/show/*.zip
 Usernames/un.db
 Usernames/show/available.txt
+Usernames/show/karma_total.txt
+Usernames/show/name.txt
+Usernames/show/time.txt
 
 *.pydevproject
 .project
@@ -230,4 +238,3 @@ build/
 dist/
 .DS_Store
 
->>>>>>> 6d673ccde561588b52d53ae6875c276f79341603
